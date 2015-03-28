@@ -105,17 +105,17 @@ typedef struct _MPQ_SIGNATURE_INFO
 //  - Memory freeing function doesn't have to test the pointer to NULL
 //
 
-#if defined(_MSC_VER) && defined(_DEBUG)
-
-#define STORM_ALLOC(type, nitems) (type *)HeapAlloc(GetProcessHeap(), 0, ((nitems) * sizeof(type)))
-#define STORM_FREE(ptr)           HeapFree(GetProcessHeap(), 0, ptr)
-
-#else
+//#if defined(_MSC_VER) && defined(_DEBUG)
+//
+//#define STORM_ALLOC(type, nitems) (type *)HeapAlloc(GetProcessHeap(), 0, ((nitems) * sizeof(type)))
+//#define STORM_FREE(ptr)           HeapFree(GetProcessHeap(), 0, ptr)
+//
+//#else
 
 #define STORM_ALLOC(type, nitems) (type *)malloc((nitems) * sizeof(type))
 #define STORM_FREE(ptr)           free(ptr)
 
-#endif
+//#endif
 
 //-----------------------------------------------------------------------------
 // StormLib internal global variables
@@ -158,6 +158,7 @@ DWORD DetectFileKeyByContent(void * pvEncryptedData, DWORD dwSectorSize, DWORD d
 DWORD DecryptFileKey(const char * szFileName, ULONGLONG MpqPos, DWORD dwFileSize, DWORD dwFlags);
 
 bool IsValidMD5(LPBYTE pbMd5);
+bool IsValidSignature(LPBYTE pbSignature);
 bool VerifyDataBlockHash(void * pvDataBlock, DWORD cbDataBlock, LPBYTE expected_md5);
 void CalculateDataBlockHash(void * pvDataBlock, DWORD cbDataBlock, LPBYTE md5_hash);
 
@@ -169,6 +170,9 @@ TMPQFile * IsValidFileHandle(HANDLE hFile);
 
 //-----------------------------------------------------------------------------
 // Support for MPQ file tables
+
+ULONGLONG FileOffsetFromMpqOffset(TMPQArchive * ha, ULONGLONG MpqOffset);
+ULONGLONG CalculateRawSectorOffset(TMPQFile * hf, DWORD dwSectorOffset);
 
 int ConvertMpqHeaderToFormat4(TMPQArchive * ha, ULONGLONG MpqOffset, ULONGLONG FileSize, DWORD dwFlags);
 
@@ -191,6 +195,9 @@ ULONGLONG FindFreeMpqSpace(TMPQArchive * ha);
 int  CreateHashTable(TMPQArchive * ha, DWORD dwHashTableSize);
 int  LoadAnyHashTable(TMPQArchive * ha);
 int  BuildFileTable(TMPQArchive * ha);
+int  DefragmentFileTable(TMPQArchive * ha);
+int  ShrinkMalformedMpqTables(TMPQArchive * ha);
+
 int  RebuildHetTable(TMPQArchive * ha);
 int  RebuildFileTable(TMPQArchive * ha, DWORD dwNewHashTableSize, DWORD dwNewMaxFileCount);
 int  SaveMPQTables(TMPQArchive * ha);
@@ -238,12 +245,11 @@ int SCompDecompressMpk(void * pvOutBuffer, int * pcbOutBuffer, void * pvInBuffer
 // Common functions - MPQ File
 
 TMPQFile * CreateFileHandle(TMPQArchive * ha, TFileEntry * pFileEntry);
-void * LoadMpqTable(TMPQArchive * ha, ULONGLONG ByteOffset, DWORD dwCompressedSize, DWORD dwRealSize, DWORD dwKey);
+void * LoadMpqTable(TMPQArchive * ha, ULONGLONG ByteOffset, DWORD dwCompressedSize, DWORD dwRealSize, DWORD dwKey, bool * pbTableIsCut);
 int  AllocateSectorBuffer(TMPQFile * hf);
 int  AllocatePatchInfo(TMPQFile * hf, bool bLoadFromFile);
 int  AllocateSectorOffsets(TMPQFile * hf, bool bLoadFromFile);
 int  AllocateSectorChecksums(TMPQFile * hf, bool bLoadFromFile);
-void CalculateRawSectorOffset(ULONGLONG & RawFilePos, TMPQFile * hf, DWORD dwSectorOffset);
 int  WritePatchInfo(TMPQFile * hf);
 int  WriteSectorOffsets(TMPQFile * hf);
 int  WriteSectorChecksums(TMPQFile * hf);

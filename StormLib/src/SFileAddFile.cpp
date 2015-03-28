@@ -321,7 +321,7 @@ static int RecryptFileData(
             }
 
             // Calculate the raw file offset of the file sector
-            CalculateRawSectorOffset(RawFilePos, hf, dwRawByteOffset);
+            RawFilePos = CalculateRawSectorOffset(hf, dwRawByteOffset);
 
             // Read the file sector
             if(!FileStream_Read(ha->pStream, &RawFilePos, hf->pbFileSector, dwRawDataInSector))
@@ -410,9 +410,8 @@ int SFileAddFile_Init(
         if(ha->pHeader->wFormatVersion == MPQ_FORMAT_VERSION_1)
         {
             TempPos  = hf->MpqFilePos + dwFileSize;
-            TempPos += ha->pHeader->dwHashTableSize * sizeof(TMPQHash);
-            TempPos += ha->pHeader->dwBlockTableSize * sizeof(TMPQBlock);
-            TempPos += ha->pHeader->dwBlockTableSize * sizeof(USHORT);
+            TempPos += ha->dwHashTableSize * sizeof(TMPQHash);
+            TempPos += ha->dwFileTableSize * sizeof(TMPQBlock);
             if((TempPos >> 32) != 0)
                 nError = ERROR_DISK_FULL;
         }
@@ -425,6 +424,10 @@ int SFileAddFile_Init(
         pFileEntry = GetFileEntryExact(ha, szFileName, lcLocale);
         if(pFileEntry == NULL)
         {
+            // First, free the internal files
+            InvalidateInternalFiles(ha);
+
+            // Find a free entry in the file table
             pFileEntry = AllocateFileEntry(ha, szFileName, lcLocale);
             if(pFileEntry == NULL)
                 nError = ERROR_DISK_FULL;
@@ -432,13 +435,10 @@ int SFileAddFile_Init(
         else
         {
             // If the caller didn't set MPQ_FILE_REPLACEEXISTING, fail it
-            if((dwFlags & MPQ_FILE_REPLACEEXISTING) == 0)
-                nError = ERROR_ALREADY_EXISTS;
-
-            // When replacing an existing file,
-            // we still need to invalidate the (attributes) file
-            if(nError == ERROR_SUCCESS)
+            if(dwFlags & MPQ_FILE_REPLACEEXISTING)
                 InvalidateInternalFiles(ha);
+            else
+                nError = ERROR_ALREADY_EXISTS;
         }
     }
 
@@ -479,11 +479,14 @@ int SFileAddFile_Init(
         // Call the callback, if needed
         if(ha->pfnAddFileCB != NULL)
             ha->pfnAddFileCB(ha->pvAddFileUserData, 0, hf->dwDataSize, false);
+        hf->nAddFileError = ERROR_SUCCESS;
     }
 
-    // Store the error code from Add File operation
-    if(hf != NULL)
-        hf->nAddFileError = nError;
+    // Fre the file handle if failed
+    if(nError != ERROR_SUCCESS && hf != NULL)
+        FreeFileHandle(hf);
+
+    // Give the handle to the caller
     *phf = hf;
     return nError;
 }

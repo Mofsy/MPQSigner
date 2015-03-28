@@ -167,14 +167,14 @@ static bool FileWasFoundBefore(
     {
         // If we are in patch MPQ, we check if patch prefix matches
         // and then trim the patch prefix
-        if(ha->cchPatchPrefix != 0)
+        if(ha->pPatchPrefix != NULL)
         {
             // If the patch prefix doesn't fit, we pretend that the file
             // was there before and it will be skipped
-            if(_strnicmp(szRealFileName, ha->szPatchPrefix, ha->cchPatchPrefix))
+            if(_strnicmp(szRealFileName, ha->pPatchPrefix->szPatchPrefix, ha->pPatchPrefix->nLength))
                 return true;
 
-            szRealFileName += ha->cchPatchPrefix;
+            szRealFileName += ha->pPatchPrefix->nLength;
         }
 
         // Calculate the hash to the table
@@ -225,9 +225,11 @@ static TFileEntry * FindPatchEntry(TMPQArchive * ha, TFileEntry * pFileEntry)
     {
         // Move to the patch archive
         ha = ha->haPatch;
+        szFileName[0] = 0;
 
         // Prepare the prefix for the file name
-        strcpy(szFileName, ha->szPatchPrefix);
+        if(ha->pPatchPrefix != NULL)
+            strcpy(szFileName, ha->pPatchPrefix->szPatchPrefix);
         strcat(szFileName, pFileEntry->szFileName);
 
         // Try to find the file there
@@ -261,7 +263,7 @@ static int DoMPQSearch(TMPQSearch * hs, SFILE_FIND_DATA * lpFindFileData)
         pFileEntry = ha->pFileTable + hs->dwNextIndex;
 
         // Get the length of the patch prefix (0 if none)
-        nPrefixLength = strlen(ha->szPatchPrefix);
+        nPrefixLength = (ha->pPatchPrefix != NULL) ? ha->pPatchPrefix->nLength : 0;
 
         // Parse the file table
         while(pFileEntry < pFileTableEnd)
@@ -269,12 +271,15 @@ static int DoMPQSearch(TMPQSearch * hs, SFILE_FIND_DATA * lpFindFileData)
             // Increment the next index for subsequent search
             hs->dwNextIndex++;
 
-            // Is it a file and not a patch file?
+            // Is it a file but not a patch file?
             if((pFileEntry->dwFlags & hs->dwFlagMask) == MPQ_FILE_EXISTS)
             {
                 // Now we have to check if this file was not enumerated before
                 if(!FileWasFoundBefore(ha, hs, pFileEntry))
                 {
+//                  if(pFileEntry != NULL && !_stricmp(pFileEntry->szFileName, "TriggerLibs\\NativeLib.galaxy"))
+//                      DebugBreak();
+
                     // Find a patch to this file
                     pPatchEntry = FindPatchEntry(ha, pFileEntry);
                     if(pPatchEntry == NULL)
@@ -297,14 +302,14 @@ static int DoMPQSearch(TMPQSearch * hs, SFILE_FIND_DATA * lpFindFileData)
                         }
                     }
 
-                    // If the file name is still NULL, we cannot include the file to the search
+                    // If the file name is still NULL, we cannot include the file to search results
                     if(szFileName != NULL)
                     {
                         // Check the file name against the wildcard
                         if(CheckWildCard(szFileName + nPrefixLength, hs->szSearchMask))
                         {
-                            // Fill the found entry
-                            lpFindFileData->dwHashIndex  = pPatchEntry->dwHashIndex;
+                            // Fill the found entry. hash entry and block index are taken from the base MPQ
+                            lpFindFileData->dwHashIndex  = pFileEntry->dwHashIndex;
                             lpFindFileData->dwBlockIndex = dwBlockIndex;
                             lpFindFileData->dwFileSize   = pPatchEntry->dwFileSize;
                             lpFindFileData->dwFileFlags  = pPatchEntry->dwFlags;
@@ -326,6 +331,12 @@ static int DoMPQSearch(TMPQSearch * hs, SFILE_FIND_DATA * lpFindFileData)
 
             pFileEntry++;
         }
+
+        // If there is no more patches in the chain, stop it.
+        // This also keeps hs->ha non-NULL, which is required
+        // for freeing the handle later
+        if(ha->haPatch == NULL)
+            break;
 
         // Move to the next patch in the patch chain
         hs->ha = ha = ha->haPatch;

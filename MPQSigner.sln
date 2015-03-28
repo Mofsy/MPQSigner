@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Express 2013 for Windows Desktop
-VisualStudioVersion = 12.0.21005.1
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MPQSigner", "MPQSigner\MPQSigner.vcxproj", "{4CECB37D-24E2-44F2-94DE-F0D17E6C49DB}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -84,8 +84,8 @@ Global
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.DebugUS|Win32.Build.0 = DebugUS|Win32
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.DebugUS|x64.ActiveCfg = DebugUS|x64
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.DebugUS|x64.Build.0 = DebugUS|x64
-		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|Win32.ActiveCfg = ReleaseUS|Win32
-		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|Win32.Build.0 = ReleaseUS|Win32
+		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|Win32.ActiveCfg = ReleaseAS|Win32
+		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|Win32.Build.0 = ReleaseAS|Win32
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|x64.ActiveCfg = ReleaseAD|x64
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.Release|x64.Build.0 = ReleaseAD|x64
 		{78424708-1F6E-4D4B-920C-FB6D26847055}.ReleaseAD|Win32.ActiveCfg = ReleaseAD|Win32

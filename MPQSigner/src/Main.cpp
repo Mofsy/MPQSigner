@@ -1,6 +1,6 @@
 /*
 *	MPQSigner - Signs MPQ files with a Blizzard Weak Digital Signature
-*	Copyright (C) 2014  xboi209 (xboi209@gmail.com)
+*	Copyright (C) 2014-2015  xboi209 (xboi209@gmail.com)
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -16,229 +16,250 @@
 *	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#if defined(_WIN32) && !defined(WIN32)
-#define WIN32
-#endif
+#define MPQSIGNER_VERSION "1.1.0"
 
-#if _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
-#define snprintf _snprintf
+#if defined(_WIN32) && !defined(WIN32)
+#define WIN32 
 #endif
 
 #include <iostream>
-#include <fstream>
-#include <cstdio>
-#include <cstring>
+#include <string>
 #include "StormLib.h"
+#include <boost/filesystem.hpp>
 
 
-using namespace std;
-
-int verifyArchive(HANDLE MPQ, char* args[]);
-
-int main(int argc, char* args[])
+int main(int argc, char* argv[])
 {
-	cout << "MPQSigner v1.0.0 - Sign MPQ files for a Blizzard Weak Digital Signature" << endl;
-	cout << "by xboi209(xboi209@gmail.com) - 2014" << endl;
-	cout << endl;
-
 	if (argc != 2)
 	{
-		cout << "Invalid number of arguments(need 2, got " << argc << ")" << endl;
+		std::cout << "Invalid number of arguments(need 2, got " << argc << ")" << std::endl;
 		return -1;
 	}
 
-	if (strcmp(args[1], "--help") == 0)
+	std::cout << "MPQSigner v" << MPQSIGNER_VERSION << " - Sign MPQ files for a Blizzard Weak Digital Signature" << std::endl;
+	std::cout << "by xboi209(xboi209@gmail.com) - 2014-2015" << std::endl;
+	std::cout << std::endl;
+
+	boost::filesystem::path p(argv[1]);
+
+	if (p.string() == "--help")
 	{
-		cout << "Usage: MPQSigner <filename>" << endl;
+		std::cout << "Usage: MPQSigner <filename>" << std::endl;
 		return 0;
 	}
 
-	if (strcmp(args[1], "--about") == 0)
+	if (p.string() == "--about")
 	{
-		cout << "MPQSigner v1.0.0 by xboi209" << endl;
-		cout << "StormLib v9.10 by Ladislav Zezula" << endl;
-		cout << "Blizzard Weak Digital Signature private key by Tesseract2048(Tianyi HE)" << endl;
+		std::cout << "MPQSigner v" << STORMLIB_VERSION_STRING << " by xboi209" << std::endl;
+		std::cout << "StormLib v" << STORMLIB_VERSION_STRING << " by Ladislav Zezula" << std::endl;
+		std::cout << "Blizzard Weak Digital Signature private key by Tesseract2048(Tianyi HE)" << std::endl;
 		return 0;
 	}
 
-	ifstream file(args[1]);
-	if (file.is_open())
+	if (!boost::filesystem::exists(p))
 	{
-		file.close();
-	}
-	else
-	{
-		cout << "Could not find file " << args[1] << endl;
+		std::cout << p.string() << " does not exist" << std::endl;
 		return -1;
 	}
 
-
-	//Ugly fix
-	HANDLE tempMPQ = NULL;
-	char newMPQname[256];
-	char filename[MAX_PATH];
-	char* output = strrchr(args[1], '.');
-
-	if (output != NULL && strcmp(output, ".mpq") != 0) //file has an extension that isn't .mpq
+	if (!boost::filesystem::is_regular_file(p))
 	{
-		//filename without extension
-		char shortfilename[FILENAME_MAX];
-		snprintf(shortfilename, 256, "%s", args[1]);
-		memset(shortfilename + strlen(shortfilename) - strlen(output), '\0', 1);
-
-		//filename with mpq extension
-		snprintf(newMPQname, 256, "%s.mpq", shortfilename);
-
-		if (SFileCreateArchive(newMPQname, MPQ_CREATE_ARCHIVE_V1 | MPQ_CREATE_ATTRIBUTES | MPQ_CREATE_SIGNATURE, HASH_TABLE_SIZE_MIN, &tempMPQ) == true)
-		{
-			cout << "Created archive " << newMPQname << endl;
-			if (SFileAddFileEx(tempMPQ, args[1], args[1], MPQ_FILE_COMPRESS | MPQ_FILE_SECTOR_CRC, MPQ_COMPRESSION_ZLIB, MPQ_COMPRESSION_NEXT_SAME) == true)
-			{
-				cout << "Added " << args[1] << " to archive " << newMPQname << endl;
-			}
-			else
-			{
-				cout << "Could not add " << args[1] << " to archive " << newMPQname << endl;
-				SFileCloseArchive(tempMPQ);
-				return -1;
-			}
-		}
-		else
-		{
-			cout << "Could not create " << newMPQname << endl;
-			return -1;
-		}
-		snprintf(filename, sizeof(filename), "%s", args[1]);
-		args[1] = newMPQname;
-	}
-	else if (output == NULL) //file has no extension
-	{
-		snprintf(newMPQname, 256, "%s.mpq", args[1]);
-
-		//copy and pasted because i'm too lazy
-		if (SFileCreateArchive(newMPQname, MPQ_CREATE_ARCHIVE_V1 | MPQ_CREATE_ATTRIBUTES | MPQ_CREATE_SIGNATURE, HASH_TABLE_SIZE_MIN, &tempMPQ) == true)
-		{
-			cout << "Created archive " << newMPQname << endl;
-			if (SFileAddFileEx(tempMPQ, args[1], args[1], MPQ_FILE_COMPRESS | MPQ_FILE_SECTOR_CRC, MPQ_COMPRESSION_ZLIB, MPQ_COMPRESSION_NEXT_SAME) == true)
-			{
-				cout << "Added " << args[1] << " to archive " << newMPQname << endl;
-			}
-			else
-			{
-				cout << "Could not add " << args[1] << " to archive " << newMPQname << endl;
-				SFileCloseArchive(tempMPQ);
-				return -1;
-			}
-		}
-		else
-		{
-			cout << "Could not create " << newMPQname << endl;
-			return -1;
-		}
-		snprintf(filename, sizeof(filename), "%s", args[1]);
-		args[1] = newMPQname;
-		//end copy and paste
-	}
-
-	if (tempMPQ == NULL)
-	{
-		if (SFileOpenArchive((const TCHAR *)args[1], 0, STREAM_PROVIDER_FLAT | BASE_PROVIDER_FILE, &tempMPQ) == true)
-		{
-			cout << "Opened archive " << args[1] << endl;
-		}
-		else
-		{
-			cout << "Could not open " << args[1] << endl;
-			return -1;
-		}
-
-		if (SFileSignArchive(tempMPQ, SIGNATURE_TYPE_WEAK) == true)
-		{
-			cout << "Signed archive " << args[1] << endl;
-		}
-		else
-		{
-			cout << "Could not sign archive " << args[1] << endl;
-			return -1;
-		}
-	}
-
-	if (SFileVerifyFile(tempMPQ, filename, SFILE_VERIFY_FILE_CRC) == VERIFY_FILE_HAS_CHECKSUM)
-	{
-		cout << "Verified CRC32 of file " << filename << endl;
-	}
-	else
-	{
-		cout << "WARNING: Could not verify CRC32 of file " << filename << endl;
-	}
-
-	if (SFileVerifyArchive(tempMPQ) == ERROR_WEAK_SIGNATURE_OK)
-	{
-		cout << args[1] << " contains a valid Blizzard Weak Digital Signature" << endl;
-	}
-	else
-	{
-		verifyArchive(tempMPQ, args);
+		std::cout << p.string() << " is not a regular file" << std::endl;
 		return -1;
 	}
 
-	if (SFileCompactArchive(tempMPQ, NULL, false) == true)
+	SFILE_CREATE_MPQ mpqinfo;
+	std::memset(&mpqinfo, 0, sizeof(SFILE_CREATE_MPQ));
+	mpqinfo.cbSize = sizeof(SFILE_CREATE_MPQ);
+	mpqinfo.dwMpqVersion = MPQ_FORMAT_VERSION_1; /* Version 1.0 */
+	mpqinfo.dwStreamFlags = STREAM_PROVIDER_FLAT | BASE_PROVIDER_FILE;
+	mpqinfo.dwFileFlags1 = 1; /* Use (listfile) */
+	mpqinfo.dwFileFlags2 = 1; /* Use (attributes) file */
+	mpqinfo.dwFileFlags3 = MPQ_FILE_EXISTS; /* Use (signature) file */
+	mpqinfo.dwAttrFlags = MPQ_ATTRIBUTE_CRC32 | MPQ_ATTRIBUTE_FILETIME | MPQ_ATTRIBUTE_MD5;
+	mpqinfo.dwSectorSize = 0x1000;
+	mpqinfo.dwRawChunkSize = 0; /* Used only if MPQ v4 */
+	mpqinfo.dwMaxFileCount = HASH_TABLE_SIZE_MIN;
+	HANDLE hArchive;
+	std::string mpqname = p.stem().string(); mpqname += ".mpq"; /* Filename with .mpq extension */
+
+	if (p.has_extension())
 	{
-		cout << "Compacted archive " << args[1] << endl;
+		if (p.extension() != ".mpq")
+		{
+			if (SFileCreateArchive2(mpqname.c_str(), &mpqinfo, &hArchive))
+			{
+				std::cout << "Created archive " << mpqname << std::endl;
+			}
+			else
+			{
+				std::cout << "Could not create archive " << mpqname << std::endl;
+				return -1;
+			}
+		}
+		else /* File has .mpq extension, just open and sign it */
+		{
+			SFileOpenArchive(p.string().c_str(), 0/* unused */, STREAM_PROVIDER_FLAT | BASE_PROVIDER_FILE, &hArchive);
+			goto signArchive;
+		}
 	}
-	else
+	else /* File with no extension */
 	{
-		cout << "WARNING: Could not compact archive " << args[1] << endl;
+		if (SFileCreateArchive2(mpqname.c_str(), &mpqinfo, &hArchive))
+		{
+			std::cout << "Created archive " << mpqname << std::endl;
+		}
+		else
+		{
+			std::cout << "Could not create archive " << mpqname << std::endl;
+			return -1;
+		}
 	}
 
-	/* StormLib does not allow the removal of the listfile
-	if (SFileRemoveFile(tempMPQ, LISTFILE_NAME, NULL) == true)
+	if (SFileAddFileEx(hArchive, p.string().c_str(), p.string().c_str(), MPQ_FILE_COMPRESS | MPQ_FILE_SECTOR_CRC, MPQ_COMPRESSION_PKWARE, MPQ_COMPRESSION_NEXT_SAME))
 	{
-		cout << "Removed listfile from archive " << args[1] << endl;
+		std::cout << "Added file " << p.string() << " to archive" << std::endl;
+
+		/* informational, can be removed */
+		HANDLE hFile;
+		if (SFileOpenFileEx(hArchive, p.string().c_str(), SFILE_OPEN_FROM_MPQ, &hFile))
+		{
+			DWORD szFilehigh;
+			DWORD szFilelow;
+			szFilelow = SFileGetFileSize(hFile, &szFilehigh);
+			if (szFilelow != SFILE_INVALID_SIZE)
+			{
+				std::cout << "File size(low): " << szFilelow << std::endl;
+				std::cout << "File size(high): " << szFilehigh << std::endl;
+			}
+		}
 	}
 	else
 	{
-		cout << "WARNING: Could not remove listfile from archive " << args[1] << endl;
+		std::cout << "Could not add file " << p.string() << " to archive" << std::endl;
+		SFileCloseArchive(hArchive);
+		return -1;
 	}
+
+	/*
+	*	http://www.zezula.net/en/mpq/stormlib/sfileverifyfile.html
+	*	Documentation is unclear to me...
 	*/
-
-	if (SFileCloseArchive(tempMPQ))
+	switch (SFileVerifyFile(hArchive, p.string().c_str(), SFILE_VERIFY_SECTOR_CRC))
 	{
-		cout << "Closed archive " << args[1] << endl;
-	}
-	else
-	{
-		cout << "Could not close archive " << args[1] << endl;
-		return -1;
-	}
-
-
-	return 0;
-}
-
-int verifyArchive(HANDLE MPQ, char* args[])
-{
-	switch (SFileVerifyArchive(MPQ))
-	{
-	case ERROR_VERIFY_FAILED:
-		cout << "Error during signature verification" << endl;
+	case VERIFY_OPEN_ERROR:
+		std::cout << "Could not open file " << p.string() << std::endl;
 		break;
-	case ERROR_WEAK_SIGNATURE_OK:
-		cout << args[1] << " contains a Blizzard Weak Digital Signature" << endl;
+	case VERIFY_READ_ERROR:
+		std::cout << "Could not read file " << p.string() << std::endl;
 		break;
-	case ERROR_WEAK_SIGNATURE_ERROR:
-		cout << "An invalid Blizzard Weak Digital Signature was found" << endl;
+	case VERIFY_FILE_HAS_SECTOR_CRC:
+		std::cout << "Verified sector CRC of file " << p.string() << std::endl;
 		break;
-	case ERROR_STRONG_SIGNATURE_OK:
-		cout << args[1] << " contains a Blizzard Strong Digital Signature" << endl;
-		break;
-	case ERROR_STRONG_SIGNATURE_ERROR:
-		cout << "An invalid Blizzard Strong Digital Signature was found" << endl;
+	case VERIFY_FILE_SECTOR_CRC_ERROR:
+		std::cout << "Verification of sector CRC of file " << p.string() << " failed" << std::endl;
 		break;
 	default:
-		cout << "An error has occurred" << endl;
+		std::cout << "An error has occurred" << std::endl;
 		break;
+	}
+	switch (SFileVerifyFile(hArchive, p.string().c_str(), SFILE_VERIFY_FILE_CRC))
+	{
+	case VERIFY_OPEN_ERROR:
+		std::cout << "Could not open file " << p.string() << std::endl;
+		break;
+	case VERIFY_READ_ERROR:
+		std::cout << "Could not read file " << p.string() << std::endl;
+		break;
+	case VERIFY_FILE_HAS_CHECKSUM:
+		std::cout << "Verified CRC32 of file " << p.string() << std::endl;
+		break;
+	case VERIFY_FILE_CHECKSUM_ERROR:
+		std::cout << "Verification of CRC32 of file " << p.string() << " failed" << std::endl;
+		break;
+	default:
+		std::cout << "An error has occurred" << std::endl;
+		break;
+	}
+	switch (SFileVerifyFile(hArchive, p.string().c_str(), SFILE_VERIFY_FILE_MD5))
+	{
+	case VERIFY_OPEN_ERROR:
+		std::cout << "Could not open file " << p.string() << std::endl;
+		break;
+	case VERIFY_READ_ERROR:
+		std::cout << "Could not read file " << p.string() << std::endl;
+		break;
+	case VERIFY_FILE_HAS_MD5:
+		std::cout << "Verified MD5 of file " << p.string() << std::endl;
+		break;
+	case VERIFY_FILE_MD5_ERROR:
+		std::cout << "Verification of MD5 of file " << p.string() << " failed" << std::endl;
+		break;
+	default:
+		std::cout << "An error has occurred" << std::endl;
+		break;
+	}
+
+
+signArchive:
+	switch (SFileVerifyArchive(hArchive))
+	{
+	case ERROR_NO_SIGNATURE:
+		if (SFileSignArchive(hArchive, SIGNATURE_TYPE_WEAK))
+		{
+			std::cout << "Signed archive" << std::endl;
+			std::cout << "Signature: Blizzard Weak Digital Signature" << std::endl;
+		}
+		else
+		{
+			std::cout << "Could not sign archive" << std::endl;
+			SFileCloseArchive(hArchive);
+			return -1;
+		}
+		break;
+	case ERROR_VERIFY_FAILED:
+		std::cout << "An error has occured during signature verification" << std::endl;
+		SFileCloseArchive(hArchive);
+		return -1;
+	case ERROR_WEAK_SIGNATURE_OK:
+		std::cout << "Signature: Blizzard Weak Digital Signature" << std::endl;
+		break;
+	case ERROR_WEAK_SIGNATURE_ERROR:
+		std::cout << "An invalid Blizzard Weak Digital Signature was found" << std::endl;
+		SFileCloseArchive(hArchive);
+		return -1;
+	case ERROR_STRONG_SIGNATURE_OK:
+		std::cout << "Signature: Blizzard Strong Digital Signature" << std::endl;
+		break;
+	case ERROR_STRONG_SIGNATURE_ERROR:
+		std::cout << "An invalid Blizzard Strong Digital Signature was found" << std::endl;
+		SFileCloseArchive(hArchive);
+		return -1;
+	default:
+		std::cout << "An error has occurred" << std::endl;
+		SFileCloseArchive(hArchive);
+		return -1;
+	}
+
+
+	if (SFileCompactArchive(hArchive, NULL, false) != 0)
+	{
+		std::cout << "Compacted archive" << std::endl;
+	}
+	else
+	{
+		std::cout << "Could not compact archive" << std::endl;
+	}
+
+closeArchive:
+	if (SFileCloseArchive(hArchive))
+	{
+		std::cout << "Closed archive" << std::endl;
+	}
+	else
+	{
+		std::cout << "Could not close archive" << std::endl;
+		return -1;
 	}
 
 	return 0;

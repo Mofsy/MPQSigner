@@ -69,6 +69,7 @@
 /* 14.01.13  8.21  Lad  ADPCM and Huffmann (de)compression refactored        */
 /* 04.12.13  9.00  Lad  Unit tests, bug fixes                                */
 /* 27.08.14  9.10  Lad  Signing archives with weak digital signature         */
+/* 25.11.14  9.11  Lad  Fixed bug reading & creating HET table               */
 /*****************************************************************************/
 
 #ifndef __STORMLIB_H__
@@ -133,8 +134,8 @@ extern "C" {
 //-----------------------------------------------------------------------------
 // Defines
 
-#define STORMLIB_VERSION                0x090A  // Current version of StormLib (9.1)
-#define STORMLIB_VERSION_STRING         "9.10"  // String version of StormLib version
+#define STORMLIB_VERSION                0x090B  // Current version of StormLib (9.11)
+#define STORMLIB_VERSION_STRING         "9.11"  // String version of StormLib version
 
 #define ID_MPQ                      0x1A51504D  // MPQ archive header ID ('MPQ\x1A')
 #define ID_MPQ_USERDATA             0x1B51504D  // MPQ userdata entry ('MPQ\x1B')
@@ -162,8 +163,6 @@ extern "C" {
 
 #define HASH_STATE_SIZE                   0x60  // Size of LibTomCrypt's hash_state structure
 
-#define MPQ_PATCH_PREFIX_LEN              0x20  // Maximum length of the patch prefix
-
 // Values for SFileOpenArchive
 #define SFILE_OPEN_HARD_DISK_FILE            2  // Open the archive on HDD
 #define SFILE_OPEN_CDROM_FILE                3  // Open the archive only if it is on CDROM
@@ -178,11 +177,14 @@ extern "C" {
 #define MPQ_FLAG_READ_ONLY          0x00000001  // If set, the MPQ has been open for read-only access
 #define MPQ_FLAG_CHANGED            0x00000002  // If set, the MPQ tables have been changed
 #define MPQ_FLAG_MALFORMED          0x00000004  // Malformed data structure detected (W3M map protectors)
-#define MPQ_FLAG_CHECK_SECTOR_CRC   0x00000008  // Checking sector CRC when reading files
-#define MPQ_FLAG_LISTFILE_INVALID   0x00000020  // If set, it means that the (listfile) has been invalidated
-#define MPQ_FLAG_ATTRIBUTES_INVALID 0x00000040  // If set, it means that the (attributes) has been invalidated
-#define MPQ_FLAG_SIGNATURE_INVALID  0x00000080  // If set, it means that the (signature) has been invalidated
-#define MPQ_FLAG_SAVING_TABLES      0x00000100  // If set, we are saving MPQ internal files and MPQ tables
+#define MPQ_FLAG_HASH_TABLE_CUT     0x00000008  // The hash table goes beyond EOF
+#define MPQ_FLAG_BLOCK_TABLE_CUT    0x00000010  // The hash table goes beyond EOF
+#define MPQ_FLAG_CHECK_SECTOR_CRC   0x00000020  // Checking sector CRC when reading files
+#define MPQ_FLAG_LISTFILE_INVALID   0x00000040  // If set, it means that the (listfile) has been invalidated
+#define MPQ_FLAG_ATTRIBUTES_INVALID 0x00000080  // If set, it means that the (attributes) has been invalidated
+#define MPQ_FLAG_SIGNATURE_INVALID  0x00000100  // If set, it means that the (signature) has been invalidated
+#define MPQ_FLAG_SAVING_TABLES      0x00000200  // If set, we are saving MPQ internal files and MPQ tables
+#define MPQ_FLAG_PATCH              0x00000400  // If set, this MPQ is a patch archive
 
 // Values for TMPQArchive::dwSubType
 #define MPQ_SUBTYPE_MPQ             0x00000000  // The file is a MPQ file (Blizzard games)
@@ -287,6 +289,7 @@ extern "C" {
 #define MPQ_OPEN_NO_HEADER_SEARCH   0x00040000  // Don't search for the MPQ header past the begin of the file
 #define MPQ_OPEN_FORCE_MPQ_V1       0x00080000  // Always open the archive as MPQ v 1.00, ignore the "wFormatVersion" variable in the header
 #define MPQ_OPEN_CHECK_SECTOR_CRC   0x00100000  // On files with MPQ_FILE_SECTOR_CRC, the CRC will be checked when reading file
+#define MPQ_OPEN_PATCH              0x00200000  // This archive is a patch MPQ. Used internally.
 #define MPQ_OPEN_READ_ONLY          STREAM_FLAG_READ_ONLY
 
 // Flags for SFileCreateArchive
@@ -821,8 +824,15 @@ typedef struct _TMPQBetTable
     DWORD dwBitExtra_NameHash2;                 // Extra bits in the NameHash2
     DWORD dwBitCount_NameHash2;                 // Effective size of the NameHash2
     DWORD dwEntryCount;                         // Number of entries
-    DWORD dwFlagCount;                          // Number of fil flags in pFileFlags
+    DWORD dwFlagCount;                          // Number of file flags in pFileFlags
 } TMPQBetTable;
+
+// Structure for patch prefix
+typedef struct _TMPQNamePrefix
+{
+    size_t nLength;                             // Length of this patch prefix. Can be 0
+    char szPatchPrefix[1];                      // Patch name prefix (variable length). If not empty, it always starts with backslash.
+} TMPQNamePrefix;
 
 // Archive handle structure
 typedef struct _TMPQArchive
@@ -834,8 +844,7 @@ typedef struct _TMPQArchive
 
     struct _TMPQArchive * haPatch;              // Pointer to patch archive, if any
     struct _TMPQArchive * haBase;               // Pointer to base ("previous version") archive, if any
-    char szPatchPrefix[MPQ_PATCH_PREFIX_LEN];   // Prefix for file names in patch MPQs
-    size_t         cchPatchPrefix;              // Length of the patch prefix, in characters
+    TMPQNamePrefix * pPatchPrefix;              // Patch prefix to precede names of patch files
 
     TMPQUserData * pUserData;                   // MPQ user data (NULL if not present in the file)
     TMPQHeader   * pHeader;                     // MPQ file header
@@ -850,6 +859,7 @@ typedef struct _TMPQArchive
     DWORD          dwHETBlockSize;
     DWORD          dwBETBlockSize;
     DWORD          dwMaxFileCount;              // Maximum number of files in the MPQ. Also total size of the file table.
+    DWORD          dwHashTableSize;             // Size of the hash table. Different from hash table size in the header if the hash table was shrunk
     DWORD          dwFileTableSize;             // Current size of the file table, e.g. index of the entry past the last occupied one
     DWORD          dwReservedFiles;             // Number of entries reserved for internal MPQ files (listfile, attributes)
     DWORD          dwSectorSize;                // Default size of one file sector
@@ -883,8 +893,9 @@ typedef struct _TMPQFile
 
     struct _TMPQFile * hfPatch;                 // Pointer to opened patch file
     TPatchHeader * pPatchHeader;                // Patch header. Only used if the file is a patch file
-    LPBYTE         pbFileData;                  // Loaded and patched file data. Only used if the file is a patch file
-    DWORD          cbFileData;                  // Size of loaded patched data
+    LPBYTE         pbFileData;                  // Data of the file (single unit files, patched files)
+    DWORD          cbFileData;                  // Size of file data
+    BYTE           FileDataMD5[MD5_DIGEST_SIZE];// MD5 hash of the loaded file data. Used during patch process
 
     TPatchInfo   * pPatchInfo;                  // Patch info block, preceding the sector table
     DWORD        * SectorOffsets;               // Position of each file sector, relative to the begin of the file. Only for compressed files.

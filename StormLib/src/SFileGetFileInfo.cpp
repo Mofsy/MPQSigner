@@ -376,11 +376,12 @@ bool WINAPI SFileGetFileInfo(
             if(ha != NULL)
             {
                 nInfoType = SFILE_INFO_TYPE_NOT_FOUND;
-                if(ha->pHashTable != NULL)
+                if(MAKE_OFFSET64(ha->pHeader->wHashTablePosHi, ha->pHeader->dwHashTablePos) != 0)
                 {
-                    pvSrcFileInfo = ha->pHashTable;
                     cbSrcFileInfo = ha->pHeader->dwHashTableSize * sizeof(TMPQHash);
-                    nInfoType = SFILE_INFO_TYPE_DIRECT_POINTER;
+                    if(cbFileInfo >= cbSrcFileInfo)
+                        pvSrcFileInfo = LoadHashTable(ha);
+                    nInfoType = SFILE_INFO_TYPE_ALLOCATED;
                 }
             }
             break;
@@ -643,7 +644,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoHashIndex:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 pvSrcFileInfo = &hf->pFileEntry->dwHashIndex;
                 cbSrcFileInfo = sizeof(DWORD);
@@ -685,7 +686,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoLocale:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 dwInt32Value = hf->pFileEntry->lcLocale;
                 pvSrcFileInfo = &dwInt32Value;
@@ -696,7 +697,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoFileIndex:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL && hf->ha != NULL)
+            if(hf != NULL && hf->ha != NULL && hf->pFileEntry != NULL)
             {
                 dwInt32Value = (DWORD)(hf->pFileEntry - hf->ha->pFileTable);
                 pvSrcFileInfo = &dwInt32Value;
@@ -717,7 +718,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoFileTime:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 pvSrcFileInfo = &hf->pFileEntry->FileTime;
                 cbSrcFileInfo = sizeof(ULONGLONG);
@@ -727,7 +728,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoFileSize:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 pvSrcFileInfo = &hf->pFileEntry->dwFileSize;
                 cbSrcFileInfo = sizeof(DWORD);
@@ -737,7 +738,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoCompressedSize:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 pvSrcFileInfo = &hf->pFileEntry->dwCmpSize;
                 cbSrcFileInfo = sizeof(DWORD);
@@ -747,7 +748,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoFlags:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 pvSrcFileInfo = &hf->pFileEntry->dwFlags;
                 cbSrcFileInfo = sizeof(DWORD);
@@ -767,7 +768,7 @@ bool WINAPI SFileGetFileInfo(
 
         case SFileInfoEncryptionKeyRaw:
             hf = IsValidFileHandle(hMpqOrFile);
-            if(hf != NULL)
+            if(hf != NULL && hf->pFileEntry != NULL)
             {
                 dwInt32Value = hf->dwFileKey;
                 if(hf->pFileEntry->dwFlags & MPQ_FILE_FIX_KEY)
