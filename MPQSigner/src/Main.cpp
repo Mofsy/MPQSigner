@@ -22,10 +22,10 @@
 #define WIN32 
 #endif
 
+#include <filesystem> //Currently non-standard, https://msdn.microsoft.com/en-us/library/hh874694.aspx
 #include <iostream>
 #include <string>
 #include "StormLib.h"
-#include <boost/filesystem.hpp>
 
 
 int main(int argc, char* argv[])
@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
 	std::cout << "by xboi209(xboi209@gmail.com) - 2014-2015" << std::endl;
 	std::cout << std::endl;
 
-	boost::filesystem::path p(argv[1]);
+	std::tr2::sys::path p(argv[1]);
 
 	if (p.string() == "--help")
 	{
@@ -56,13 +56,13 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 
-	if (!boost::filesystem::exists(p))
+	if (!std::tr2::sys::exists(p))
 	{
 		std::cout << p.string() << " does not exist" << std::endl;
 		return -1;
 	}
 
-	if (!boost::filesystem::is_regular_file(p))
+	if (!std::tr2::sys::is_regular_file(p))
 	{
 		std::cout << p.string() << " is not a regular file" << std::endl;
 		return -1;
@@ -81,9 +81,9 @@ int main(int argc, char* argv[])
 	mpqinfo.dwRawChunkSize = 0; /* Used only if MPQ v4 */
 	mpqinfo.dwMaxFileCount = HASH_TABLE_SIZE_MIN;
 	HANDLE hArchive;
-	std::string mpqname = p.stem().string(); mpqname += ".mpq"; /* Filename with .mpq extension */
+	std::string mpqname = p.stem(); mpqname += ".mpq"; /* Filename with .mpq extension */
 
-	if (p.has_extension())
+	if (!std::tr2::sys::is_empty(p.extension())) /* VS2013 does not support has_extension() */
 	{
 		if (p.extension() != ".mpq")
 		{
